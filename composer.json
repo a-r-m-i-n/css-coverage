@@ -1,0 +1,40 @@
+{
+    "name": "t3/css-coverage",
+    "type": "typo3-cms-extension",
+    "description": "",
+    "keywords": [
+        "TYPO3 CMS",
+        "CSS coverage"
+    ],
+    "homepage": "https://extensions.typo3.org/extension/css_coverage/",
+    "support": {
+        "source": "https://github.com/a-r-m-i-n/css-coverage"
+    },
+    "license": "GPL-2.0-or-later",
+    "authors": [
+        {
+            "name": "Armin Vieweg",
+            "role": "Developer",
+            "email": "info@v.ieweg.de"
+        }
+    ],
+    "require": {
+        "php": ">=7.4",
+        "ext-libxml": "*",
+        "typo3/cms-core": "^10.4 || ^11.0",
+        "sabberworm/php-css-parser": "^8.3.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "T3\\CssCoverage\\": "Classes"
+        }
+    },
+    "replace": {
+        "typo3-ter/css-coverage": "*"
+    },
+    "extra": {
+        "typo3/cms": {
+            "extension-key": "css_coverage"
+        }
+    }
+}
