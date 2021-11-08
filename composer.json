@@ -22,7 +22,9 @@
         "php": ">=7.4",
         "ext-libxml": "*",
         "typo3/cms-core": "^10.4 || ^11.0",
-        "sabberworm/php-css-parser": "^8.3.1"
+        "sabberworm/php-css-parser": "^8.3.1",
+        "symfony/dom-crawler": "^5.3",
+        "symfony/css-selector": "^5.3"
     },
     "autoload": {
         "psr-4": {
