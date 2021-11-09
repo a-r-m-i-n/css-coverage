@@ -1,8 +1,6 @@
 <?php declare(strict_types = 1);
 namespace T3\CssCoverage\Service;
 
-
-use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
 use Sabberworm\CSS\CSSList\AtRuleBlockList;
@@ -16,35 +14,38 @@ use T3\CssCoverage\Configuration;
 use T3\CssCoverage\Service\Result\CssFile;
 use TYPO3\CMS\Core\Core\Environment;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
-use TYPO3\CMS\Core\Utility\StringUtility;
+use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
 
 class CssCoverageService implements LoggerAwareInterface
 {
     use LoggerAwareTrait;
 
-    public function run(ResponseInterface $response, array $configuration): ResponseInterface
+    public function contentPostProc(array $params, TypoScriptFrontendController $tsfe)
+    {
+        $content = $this->run($tsfe->content, $tsfe->tmpl->setup['plugin.']['tx_csscoverage.'] ?? []);
+
+        $tsfe->content = $content;
+    }
+
+    public function run(string $html, array $configuration): string
     {
         if (empty($configuration)) {
             $this->logger->debug('Given TypoScript configuration is empty. Because of this, EXT:css_coverage remains disabled.');
-            return $response;
+            return $html;
         }
 
         /** @var Configuration $config */
         $config = GeneralUtility::makeInstance(Configuration::class, $configuration);
         if (!$config->isEnabled()) {
-            return $response;
+            return $html;
         }
 
         $this->logger->debug('CssCoverageService is running');
 
-        $responseBody = $response->getBody();
-        $responseBody->rewind();
-        $responseHtml = $responseBody->getContents();
-
         // Get CSS files
-        $cssFiles = $this->extractCssFilesFromHtml($responseHtml, $config);
+        $cssFiles = $this->extractCssFilesFromHtml($html, $config);
 
-        $crawler = new Crawler($responseHtml);
+        $crawler = new Crawler($html);
 
         // Process CSS files
         foreach ($cssFiles as $cssFile) {
@@ -52,7 +53,6 @@ class CssCoverageService implements LoggerAwareInterface
             $originalSize = strlen(($contents));
             unset($contents);
             $cssDocument = $parser->parse();
-
 
             /** @var DeclarationBlock $block */
             foreach ($cssDocument->getContents() as $block) {
@@ -120,13 +120,10 @@ class CssCoverageService implements LoggerAwareInterface
             if ($config->isDebugEnabled()) {
                 $info = '<!-- Saved ' . $saved . 'KB in ' . $cssFile->getSanitizedFilePath() . ' -->';
             }
-            $responseHtml = str_replace($cssFile->getHtmlCode(), $info . PHP_EOL . '<style>' . $inlineCss . '</style>', $responseHtml);
+            $html = str_replace($cssFile->getHtmlCode(), $info . PHP_EOL . '<style>' . $inlineCss . '</style>', $html);
         }
 
-        $responseBody->rewind();
-        $responseBody->write($responseHtml);
-
-        return $response;
+        return $html;
     }
 
     /**
