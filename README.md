@@ -13,7 +13,7 @@ This increases the CSS code coverage dramatically and reduces the overall page l
 Include the TypoScript shipped in EXT:css_coverage in your TypoScript template.
 
 This is the default setup:
-```
+```typo3_typoscript
 plugin.tx_csscoverage {
 	enabled = 1
 	debug = 1
@@ -33,7 +33,7 @@ plugin.tx_csscoverage {
 
 When debug is enabled, it displays in HTML comments like this:
 
-```
+```html
 <!-- Saved 2.2KB in /typo3temp/assets/css/8015c8c4ac.css -->
 <!-- Saved 84.4KB in /assets/style.css -->
 ```
