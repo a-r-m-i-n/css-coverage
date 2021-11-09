@@ -20,7 +20,7 @@
     ],
     "require": {
         "php": ">=7.4",
-        "ext-libxml": "*",
+        "ext-dom": "*",
         "typo3/cms-core": "^10.4 || ^11.0",
         "sabberworm/php-css-parser": "^8.3.1",
         "symfony/dom-crawler": "^5.3",

@@ -15,8 +15,12 @@ class CssFile
     {
 
         $this->filePath = $filePath;
+        // get rid of ?432131235 appendix
         $this->sanitizedFilePath = preg_replace('/(.*)\?.*/', '$1', $filePath);
-        if (StringUtility::endsWith($this->sanitizedFilePath, '-min.css.gzip')) {
+        // get rid of EXT:min suffix
+        if (StringUtility::endsWith($this->sanitizedFilePath, '-min.css')) {
+            $this->sanitizedFilePath = substr($this->sanitizedFilePath, 0, -8) . '.css';
+        } elseif (StringUtility::endsWith($this->sanitizedFilePath, '-min.css.gzip')) {
             $this->sanitizedFilePath = substr($this->sanitizedFilePath, 0, -13) . '.css';
         }
         $this->htmlCode = $htmlCode;
@@ -29,7 +33,7 @@ class CssFile
 
     public function getSanitizedFilePath(): string
     {
-        return $this->sanitizedFilePath;
+        return '/' . ltrim($this->sanitizedFilePath, '/');
     }
 
     public function getHtmlCode(): string

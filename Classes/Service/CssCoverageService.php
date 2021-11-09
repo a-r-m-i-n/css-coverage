@@ -2,6 +2,9 @@
 namespace T3\CssCoverage\Service;
 
 
+use Psr\Http\Message\ResponseInterface;
+use Psr\Log\LoggerAwareInterface;
+use Psr\Log\LoggerAwareTrait;
 use Sabberworm\CSS\CSSList\AtRuleBlockList;
 use Sabberworm\CSS\OutputFormat;
 use Sabberworm\CSS\Parser as CssParser;
@@ -9,34 +12,45 @@ use Sabberworm\CSS\Property\Selector;
 use Sabberworm\CSS\RuleSet\DeclarationBlock;
 use Symfony\Component\CssSelector\Exception\ExpressionErrorException;
 use Symfony\Component\DomCrawler\Crawler;
+use T3\CssCoverage\Configuration;
 use T3\CssCoverage\Service\Result\CssFile;
 use TYPO3\CMS\Core\Core\Environment;
-use TYPO3\CMS\Core\Http\Response;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\StringUtility;
 
-class CssCoverageService
+class CssCoverageService implements LoggerAwareInterface
 {
+    use LoggerAwareTrait;
 
-    public function run(Response $response): Response
+    public function run(ResponseInterface $response, array $configuration): ResponseInterface
     {
-        $body = $response->getBody();
-        $body->rewind();
-        $html = $body->getContents();
+        if (empty($configuration)) {
+            $this->logger->debug('Given TypoScript configuration is empty. Because of this, EXT:css_coverage remains disabled.');
+            return $response;
+        }
+
+        /** @var Configuration $config */
+        $config = GeneralUtility::makeInstance(Configuration::class, $configuration);
+        if (!$config->isEnabled()) {
+            return $response;
+        }
+
+        $this->logger->debug('CssCoverageService is running');
+
+        $responseBody = $response->getBody();
+        $responseBody->rewind();
+        $responseHtml = $responseBody->getContents();
 
         // Get CSS files
-        $cssFiles = $this->extractCssFilesFromHtml($html);
+        $cssFiles = $this->extractCssFilesFromHtml($responseHtml, $config);
 
-        $crawler = new Crawler($html);
+        $crawler = new Crawler($responseHtml);
 
         // Process CSS files
         foreach ($cssFiles as $cssFile) {
-
-            // TODO make this configurable
-            if (StringUtility::endsWith($cssFile->getSanitizedFilePath(), 'fonts.css')) {
-                continue;
-            }
-
-            $parser = new CssParser(file_get_contents(Environment::getPublicPath() . $cssFile->getSanitizedFilePath()));
+            $parser = new CssParser($contents = file_get_contents(Environment::getPublicPath() . $cssFile->getSanitizedFilePath()));
+            $originalSize = strlen(($contents));
+            unset($contents);
             $cssDocument = $parser->parse();
 
 
@@ -48,11 +62,16 @@ class CssCoverageService
                     $removeIt = true;
                     /** @var Selector $selector */
                     foreach ($selectors as $selector) {
+                        if ($config->isWildcarded($selector->getSelector())) {
+                            $removeIt = false;
+                            continue;
+                        }
+
                         try {
                             $items = $crawler->filter($selector->getSelector());
                         } catch (ExpressionErrorException $e) {
                             $removeIt = false;
-                            continue; // TODO
+                            continue; // Allow any weird pseudo css class
                         }
                         if ($items->count() > 0) {
                             $removeIt = false;
@@ -85,20 +104,27 @@ class CssCoverageService
                 }
             }
 
-            foreach ($cssDocument->getContents() as $baum) {
-                if ($baum instanceof AtRuleBlockList && empty($baum->getContents())) {
-                    $cssDocument->remove($baum);
+            // Remove empty media queries
+            foreach ($cssDocument->getContents() as $content) {
+                if ($content instanceof AtRuleBlockList) {
+                    if (empty($content->getContents())) {
+                        $cssDocument->remove($content);
+                    }
                 }
             }
 
             $inlineCss = $cssDocument->render(OutputFormat::createCompact());
-
-            $info = '<!-- ' . $cssFile->getSanitizedFilePath() . ' -->';
-            $html = str_replace($cssFile->getHtmlCode(), $info . PHP_EOL . '<style>' . $inlineCss . '</style>', $html);
+            $newSize = strlen($inlineCss);
+            $saved = round(($originalSize - $newSize) / 1024, 1); // KB
+            $info = '';
+            if ($config->isDebugEnabled()) {
+                $info = '<!-- Saved ' . $saved . 'KB in ' . $cssFile->getSanitizedFilePath() . ' -->';
+            }
+            $responseHtml = str_replace($cssFile->getHtmlCode(), $info . PHP_EOL . '<style>' . $inlineCss . '</style>', $responseHtml);
         }
 
-        $body->rewind();
-        $body->write($html);
+        $responseBody->rewind();
+        $responseBody->write($responseHtml);
 
         return $response;
     }
@@ -106,35 +132,21 @@ class CssCoverageService
     /**
      * @return array|CssFile[]
      */
-    private function extractCssFilesFromHtml(string $html): array
+    private function extractCssFilesFromHtml(string $html, Configuration $config): array
     {
-        $dom = $this->parseHtml($html);
-        $links = $dom->getElementsByTagName('link');
+        $crawler = new Crawler($html);
 
         $result = [];
         /** @var \DOMElement $link */
-        foreach ($links as $link) {
+        foreach ($crawler->filter('link') as $link) {
             if ($link->hasAttribute('rel') && $link->getAttribute('rel') === 'stylesheet' &&
                 $link->hasAttribute('type') && $link->getAttribute('type') === 'text/css' &&
-                $link->hasAttribute('href')
+                $link->hasAttribute('href') &&
+                !$config->isExcludedFile($href = $link->getAttribute('href'))
             ) {
-                $href = $link->getAttribute('href');
-                $result[] = new CssFile($href, $dom->saveHTML($link));
+                $result[] = new CssFile($href, $link->ownerDocument->saveHTML($link));
             }
         }
         return $result;
-    }
-
-    private function parseHtml(string $html)
-    {
-        $xml = new \DOMDocument();
-        libxml_use_internal_errors(true);
-        $success = $xml->loadHTML($html);
-
-        if (!$success) {
-            throw new \RuntimeException('Error parsing HTML!');
-        }
-
-        return $xml;
     }
 }

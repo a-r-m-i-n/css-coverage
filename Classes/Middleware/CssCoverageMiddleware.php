@@ -19,9 +19,8 @@ class CssCoverageMiddleware implements MiddlewareInterface
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        $response = $handler->handle($request);
-        $response = $this->coverageService->run($response);
+        $configuration = $GLOBALS['TSFE']->tmpl->setup['plugin.']['tx_csscoverage.'] ?? [];
 
-        return $response;
+        return $this->coverageService->run($handler->handle($request), $configuration);
     }
 }

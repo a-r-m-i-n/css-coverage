@@ -1,0 +1,15 @@
+plugin.tx_csscoverage {
+	enabled = 1
+	debug = 1
+	excluded {
+		# Exclude external resources
+		1 = http://*
+		2 = https://*
+	}
+	selectorWildcards {
+		# Define here selectors, set dynamically by javascript
+		1 = .show
+		2 = .fade
+		10 = .popover*
+	}
+}
